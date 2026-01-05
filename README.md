@@ -10,4 +10,4 @@ Pay attention to structure paths with "/" and not with "\\"  (the default for Wi
     Note: 
     - The plot viewer in Rstudio will not show the plots in the intended aspect ratio and size. The actual figures in the intended format are saved into the directory specified by the "path_figures" parameter at the start of the script
 
-Prepared by Jan Gačnik, Marko Štrok, and Polona Vreča. 
+Prepared by Jan Gačnik, Marko Štrok, Klara Žagar, and Polona Vreča. 
