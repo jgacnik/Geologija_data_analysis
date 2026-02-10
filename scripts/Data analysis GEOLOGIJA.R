@@ -1,16 +1,17 @@
 ###############################################################################
-# DATA ANALYSIS AND VISUALIZATION for Gačnik et al. (2025)
-# CITATION: Gačnik J., Štrok, M., Žagar, K., Vreča P. (under reivew): Isotopic composition of precipitation at the station Ljubljana, Slovenia: period 2011-2024
+# DATA ANALYSIS AND VISUALIZATION for Gačnik et al., Geologija (2026)
+# CITATION: Gačnik J., Štrok, M., Žagar, K., Vreča P. (under reivew): Isotopic composition of hydrogen and oxygen in precipitation at the station Ljubljana (Reaktor), Slovenia: period 2011–2024
 # CODE AUTHOR: JAN GAČNIK, October 2025
 # R version: 4.4.2
 ###############################################################################
 # DO THIS STEP ONLY THE FIRST TIME! Installation of needed packages
-install.packages(c("ggcorrplot", "forecast", "tidyverse", "readxl"))
+install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
 path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
 path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
 path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_shapes <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Shapes"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -22,7 +23,7 @@ dpi_set <- 500
 
 # Load required packages for the current session
 setwd(path_scripts)
-lapply(c("ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"), require, character.only = TRUE)
+lapply(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"), require, character.only = TRUE)
 
 # Calling needed functions
 source("Functions_MA&RMA.R")
@@ -74,7 +75,7 @@ Ljubljana_meteo_data_yearly <- Ljubljana_meteo_data_long %>%
     TRUE ~ NA
   ))
 
-write.csv(Ljubljana_meteo_data_yearly, file = "Ljubljana_year_statistics.csv", row.names = FALSE)
+#write.csv(Ljubljana_meteo_data_yearly, file = "Ljubljana_year_statistics.csv", row.names = FALSE)
 
 Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data, Ljubljana_filename), trim_ws = TRUE) %>%
   left_join(Ljubljana_meteo_data %>% dplyr::select(Year, Month, P_reaktor), by = c("Year", "Month")) %>% 
@@ -115,7 +116,7 @@ Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data
 
 Ljubljana_data_cor <- Ljubljana_data %>% 
   dplyr::select(δ18O, δ2H, d, "3H", T, P, RH) %>%
-  cor(use = "complete.obs")
+  cor(use = "pairwise.complete.obs", method = "pearson")
 
 Ljubljana_data_longer <-  Ljubljana_data %>% 
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
@@ -232,7 +233,7 @@ Ljubljana_data_period_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P")))
 
-write.csv(Ljubljana_data_period_statistics, "Ljubljana_period_statistics.csv", row.names = FALSE)
+#write.csv(Ljubljana_data_period_statistics, "Ljubljana_period_statistics.csv", row.names = FALSE)
 
 Ljubljana_data_month_statistics <- Ljubljana_data %>% 
   dplyr::filter(Year > 2010) %>% 
@@ -260,7 +261,7 @@ Ljubljana_data_month_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-write.csv(Ljubljana_data_month_statistics, "Ljubljana_month_statistics.csv", row.names = FALSE)
+#write.csv(Ljubljana_data_month_statistics, "Ljubljana_month_statistics.csv", row.names = FALSE)
 
 Ljubljana_data_season_statistics <- Ljubljana_data %>% 
   dplyr::filter(Year > 2010) %>%
@@ -288,7 +289,7 @@ Ljubljana_data_season_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-write.csv(Ljubljana_data_season_statistics, "Ljubljana_seasonal_statistics.csv", row.names = FALSE)
+#write.csv(Ljubljana_data_season_statistics, "Ljubljana_seasonal_statistics.csv", row.names = FALSE)
 
 Ljubljana_data_year_slopes_2011_2024 <- Ljubljana_data %>%
   dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010) %>%
@@ -311,27 +312,81 @@ Ljubljana_data_year_slopes_2011_2024 <- Ljubljana_data %>%
   mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
          LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
 
-write.csv(Ljubljana_data_year_slopes_2011_2024, "Yearly_regressions_comparison_2.csv", row.names = FALSE)
+#write.csv(Ljubljana_data_year_slopes_2011_2024, "Yearly_regressions_comparison_2.csv", row.names = FALSE)
 
+# d18O/d2H versus T regresssions and correlations, STATS
 Ljubljana_T_regression <- Ljubljana_data %>% 
-  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) &year(Date) > 2010)
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010)
 
-a <- lm(`δ18O` ~ T, data =  Ljubljana_T_regression)
+a <- lm(`δ18O` ~ T, data =  Ljubljana_T_regression) 
 summary(a)
-cor(x = Ljubljana_T_regression$T, y = Ljubljana_T_regression$δ18O)
-
-
-b <- lm(`δ2H` ~ T, data =  Ljubljana_T_regression)
+cor(x = Ljubljana_data$T, y = Ljubljana_data$δ18O, use = "pairwise.complete.obs")
+b <- lm(`δ2H` ~ T, data =  Ljubljana_data)
 summary(b)
-cor(x = Ljubljana_T_regression$T, y = Ljubljana_T_regression$δ2H)
+cor(x = Ljubljana_data$T, y = Ljubljana_data$δ2H, use = "pairwise.complete.obs")
 
-Ljubljana_T_regression_3H <- Ljubljana_data %>% 
-  dplyr::filter(!is.na(`3H`) & !is.na(`δ18O`) & year(Date) > 2010)
+Ljubljana_T_regression_hrastje <- Ljubljana_data %>% 
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010) %>% 
+  left_join(dplyr::select(Ljubljana_meteo_data, c("Date", "T_hrastje")), by = "Date")
+
+a_hrastje <- lm(`δ18O` ~ T_hrastje, data =  Ljubljana_T_regression_hrastje)
+summary(a_hrastje)
+cor(x = Ljubljana_meteo_data$T_hrastje, y = Ljubljana_data$δ18O, use = "pairwise.complete.obs")
+b_hrastje <- lm(`δ2H` ~ T_hrastje, data =  Ljubljana_T_regression_hrastje)
+summary(b_hrastje)
+cor(x = Ljubljana_meteo_data$T_hrastje, y = Ljubljana_data$δ2H, use = "pairwise.complete.obs")
 
 ###############################################################################
 # PLOTTING
 ###############################################################################
 # FIGURE 1
+###############################################################################
+# Map Slovenia
+shapefile_border_SLO <- ne_countries(scale = 10, continent = "Europe")
+shapefile_names_SLO <- data.frame(
+  Station_name = c("SVN", "AUT", "HRV", "ITA", "HUN"),
+  lon = c(14.9, 15, 15.35, 12.5, 17.2),
+  lat = c(46.3, 47.5, 45, 46.1, 46.8)
+) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+stations_sf <- data.frame(
+  Station_name = c("Ljubljana–Bežigrad", "Ljubljana–JSI", "Ljubljana–Reaktor"),
+  lon = c(14.512352, 14.487778, 14.597046),
+  lat = c(46.065507, 46.041944, 46.094612)
+) %>%
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+Ljubljana_sf <- stations_sf %>%
+  dplyr::filter(Station_name == "Ljubljana–Bežigrad") %>%
+  mutate(Station_name = "Ljubljana") %>%
+  rbind(st_as_sf(data.frame(
+    Station_name = c("Vienna", "Portorož"),
+    lon = c(16.37250, 13.5799694),
+    lat = c(48.20833, 45.5166333)
+  ), coords = c("lon", "lat"), crs = 4326))
+
+ggplot() +
+  geom_sf(data = shapefile_border_SLO, fill = NA) +
+  geom_sf(data = dplyr::filter(shapefile_border_SLO, sov_a3 == "SVN"), fill = "grey85") +
+  geom_text(data = shapefile_names_SLO, aes(x = st_coordinates(geometry)[,1], 
+                                            y = st_coordinates(geometry)[,2], 
+                                            label = Station_name),
+            size = 1.8) +
+  geom_sf(data = dplyr::filter(Ljubljana_sf, Station_name == "Ljubljana"), fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
+  geom_text(data = dplyr::filter(Ljubljana_sf, Station_name == "Ljubljana"), aes(x = st_coordinates(geometry)[,1], 
+                                     y = st_coordinates(geometry)[,2], 
+                                     label = Station_name),
+            color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
+  coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 47.5)) +
+  theme_bw() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank())
+
+ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 60, height = 50, units = "mm")
+###############################################################################
+# FIGURE 2
 ###############################################################################
 # Meteorology all
 ggplot(data = Ljubljana_meteo_data_long) +
@@ -394,10 +449,13 @@ ggplot(data = Ljubljana_meteo_data_monthly) +
 
 ggsave(filename = paste("Ljubljana_meteo_monthly",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 75, height = 100, units = "mm")
 
+###############################################################################
+# FIGURE 3
+###############################################################################
 # Isotopes timeseries, all
-ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & !(Variable %in% c("T", "P"))), aes(x = Date, y = Value)) +
+ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & !(Variable %in% c("T", "P", "RH"))), aes(x = Date, y = Value)) +
   geom_line(linewidth = 0.3) +
-  geom_text(data = dplyr::filter(Ljubljana_data_period_statistics, !(Variable %in% c("T", "P"))),
+  geom_text(data = dplyr::filter(Ljubljana_data_period_statistics, !(Variable %in% c("T", "P", "RH"))),
             aes(x = as.Date("2025-01-01"), y = Max, label = paste0("n = ", n)), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 1, hjust = 1, size = 3.2) +
   labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; A ("^"3"*"H) [TU]")) +
@@ -425,6 +483,9 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & !(Variable %in%
 
 ggsave(filename = paste("Isotopes_trend",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 160, height = 130, units = "mm")
 
+###############################################################################
+# FIGURE 4
+###############################################################################
 # Monthly plot
 ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & is.na(Variable) == FALSE),
        aes(x = Month, y = Value, group = Month)) +
@@ -475,16 +536,19 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & is.na(Variable)
 
 ggsave(filename = paste("Ljubljana_seasonal_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 180, units = "mm")
 
+###############################################################################
+# FIGURE 5
+###############################################################################
 # Sigma plot & T
 ggplot(data = dplyr::filter(Ljubljana_data_longer_sigma, Variable_size == "T" & Value_size > 0),
        aes(x = δ18O, y = δ2H, size =  Value_size)) +
-  geom_point() +
+  geom_point(fill = "grey", color = "black", shape = 21) +
   geom_abline(slope = 7.76, intercept = 9.91) +
   annotate("text", x = -10, y = -10,
            label = "δ2H = (7.76±0.07)δ18O + (9.11±0.65)", size = 2.7) +
   scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
   scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  scale_size_continuous(range = c(0.1, 4)) +
+  scale_radius() +  # breaks = scales::breaks_extended(n = 8)
   labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
        x = expression("\u03B4"^"18"*"O [\u2030]"),
        size = "Temperature [°C]") +
@@ -505,6 +569,39 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer_sigma, Variable_size == "T" & 
 
 ggsave(filename = paste("Ljubljana_sigma_plot_T",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 80, units = "mm")
 
+# Sigma plot & P
+ggplot(data = dplyr::filter(Ljubljana_data_longer_sigma, Variable_size == "P" & Value_size > 0),
+       aes(x = δ18O, y = δ2H, size =  Value_size)) +
+  geom_point(fill = "grey", color = "black", shape = 21) +
+  geom_abline(slope = 7.76, intercept = 9.91) +
+  annotate("text", x = -10, y = -10,
+           label = "δ2H = (7.76±0.07)δ18O + (9.11±0.65)", size = 2.7) +
+  scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_radius() +  # breaks = scales::breaks_extended(n = 8)
+  labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
+       x = expression("\u03B4"^"18"*"O [\u2030]"),
+       size = "Precipitation [mm]") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 8, colour = "black"),
+        axis.title.x = element_text(size = 8, colour = "black"),
+        axis.text.y = element_text(size = 8, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        legend.title = element_text(size = 8, colour = "black"),
+        legend.text = element_text(size = 7, colour = "black"),
+        legend.position = "inside",
+        legend.position.inside = c(0.80, 0.2),
+        legend.key.spacing.y = unit(1, "mm"),
+        legend.spacing = unit(0, "mm"),
+        legend.key.size = unit(2, "mm"),
+        legend.background = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = paste("Ljubljana_sigma_plot_P",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 80, units = "mm")
+
+###############################################################################
+# FIGURE 6
+###############################################################################
 # Correlation plot
 cor_labels <- as.character(Ljubljana_data_cor)
 
