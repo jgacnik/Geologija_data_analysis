@@ -1,5 +1,5 @@
 # Geologija data analysis
-Data analysis and visualization of $\delta^{18}O$, $\delta^{2}H$ and $^{3}H$ and meteorological data for precipitation isotopes in Ljubljana, period 2011-2024. The results obtained using this analysis are presented in Gačnik et al. (_under review_), "IIsotopic composition of hydrogen and oxygen in precipitation at the station Ljubljana (Reaktor), Slovenia: period 2011–2024"
+Data analysis and visualization of $\delta^{18}O$, $\delta^{2}H$ and $^{3}H$ and meteorological data for precipitation isotopes in Ljubljana, period 2011-2024. The results obtained using this analysis are presented in Gačnik et al. (_under review_), "Isotopic composition of hydrogen and oxygen in precipitation at the station Ljubljana (Reaktor), Slovenia: period 2011–2024"
 
 ## Instructions:
 1) Open the _"Data analysis GEOLOGIJA.R"_ in the _"scripts"_ directory, preferably with RStudio as the text editor.
