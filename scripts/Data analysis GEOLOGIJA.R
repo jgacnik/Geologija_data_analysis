@@ -11,7 +11,6 @@ install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "t
 path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
 path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
 path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
-path_shapes <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Shapes"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
