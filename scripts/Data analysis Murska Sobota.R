@@ -8,9 +8,10 @@
 install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_tables <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/tables" # Change to your directory path where you want to save figures, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -33,29 +34,24 @@ Murska_data <- read_xlsx(sheet = "Data MS", path = file.path(path_data, Murska_f
   dplyr::select(Sample_ID, Station_ID, Name, Year, Month, P, T, RH, δ18O, δ2H, d, "3H (TU)") %>%
   rename("3H" = "3H (TU)") %>% 
   mutate(Site = "Murska Sobota") %>%
-  mutate(Season = "") %>%
   mutate(Season = case_when(
     Month %in% c(12, 1, 2)  ~ "winter",
     Month %in% c(3, 4, 5)  ~ "spring",
     Month %in% c(6, 7, 8)  ~ "summer",
     Month %in% c(9, 10, 11)  ~ "autumn",
-    TRUE ~ Season)) %>%
+    TRUE ~ NA)) %>%
   mutate(Season = factor(Season, levels = c("winter", "spring", "summer", "autumn"))) %>%
-  mutate(P_δ18O_δ2H = P) %>%
   mutate(P_δ18O_δ2H = case_when(
     is.na(δ18O) | is.na(δ2H) ~ NA,
-    TRUE ~ P_δ18O_δ2H)) %>%
+    TRUE ~ P)) %>%
   mutate(P_3H = case_when(
     is.na(`3H`) ~ NA,
     TRUE ~ P)) %>%
-  mutate(Date = as.POSIXct(make_date(Year, Month)),
-         time_since_start = interval(min(Date), Date) %/% months(1),
-         Date = as.Date(make_date(Year, Month)))
+  mutate(Date = as.Date(make_date(Year, Month)))
 
 Murska_data_cor <- Murska_data %>% 
   dplyr::select(δ18O, δ2H, d, "3H", T, P, RH) %>%
   cor(use = "pairwise.complete.obs", method = "pearson")
-
 
 Murska_data_longer <-  Murska_data %>% 
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
@@ -126,7 +122,8 @@ Murska_data_longer_year <- Murska_data %>%
   pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, weighted_mean_3H, mean_T, mean_P), names_to = "Variable", values_to = "Value") %>% 
   pivot_wider(names_from = c("Variable"), values_from = "Value", names_sep = "_") 
 
-#write.csv(Murska_data_longer_year, "Murska_year_statistics.csv", row.names = FALSE)
+# Save yearly statistics into a .csv table
+write.csv(Murska_data_longer_year, file = file.path(path_tables, "Murska_year_statistics.csv"), row.names = FALSE)
 
 Murska_data_period_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
@@ -151,7 +148,8 @@ Murska_data_period_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P")))
 
-#write.csv(Murska_data_period_statistics, "Murska_period_statistics.csv", row.names = FALSE)
+# Save whole period statistics into a .csv table
+write.csv(Murska_data_period_statistics, file = file.path(path_tables, "Murska_period_statistics.csv"), row.names = FALSE)
 
 Murska_data_month_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
@@ -178,7 +176,8 @@ Murska_data_month_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-#write.csv(Murska_data_month_statistics, "Murska_month_statistics.csv", row.names = FALSE)
+# Save monthly statistics into a .csv table
+write.csv(Murska_data_month_statistics, file = file.path(path_tables, "Murska_month_statistics.csv"), row.names = FALSE)
 
 Murska_data_season_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
@@ -205,7 +204,8 @@ Murska_data_season_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-#write.csv(Murska_data_season_statistics, "Murska_seasonal_statistics.csv", row.names = FALSE)
+# Save seasonal statistics into a .csv table
+write.csv(Murska_data_season_statistics, file = file.path(path_tables, "Murska_seasonal_statistics.csv"), row.names = FALSE)
 
 Murska_data_year_slopes_2016_2024 <- Murska_data %>%
   dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>% 
@@ -222,7 +222,8 @@ Murska_data_year_slopes_2016_2024 <- Murska_data %>%
   mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
          LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
 
-#write.csv(Murska_data_year_slopes_2016_2024, "Murska_yearly_regression_statistics.csv", row.names = FALSE)
+# Save yearly RMA/MA regression statistics into a .csv table
+write.csv(Murska_data_year_slopes_2016_2024, file = file.path(path_tables, "Murska_yearly_regression_statistics.csv"), row.names = FALSE)
 
 # d18O/d2H versus T regresssions and correlations, STATS
 Murska_T_regression <- Murska_data %>% 
@@ -289,10 +290,10 @@ ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_f
 ###############################################################################
 # Isotopes timeseries, all
 ggplot(data = dplyr::filter(Murska_data_longer, Year > 2010 & !(Variable %in% c("T", "P", "RH"))), aes(x = Date, y = Value)) +
-  geom_line(linewidth = 0.3) +
+  geom_line(linewidth = 0.3, na.rm = TRUE) +
   geom_text(data = dplyr::filter(Murska_data_period_statistics, !(Variable %in% c("T", "P", "RH"))),
             aes(x = as.Date("2025-01-01"), y = Max, label = paste0("n = ", n)), # Use y = 0 or another fixed value to position text inside plot
-            inherit.aes = FALSE, vjust = 1, hjust = 1, size = 3.2) +
+            inherit.aes = FALSE, vjust = 1, hjust = 1, size = 3.2, na.rm = TRUE) +
   labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; A ("^"3"*"H) [TU]")) +
   scale_x_date(
     limits = as.Date(c("2016-01-01", "2025-01-01")),
@@ -325,8 +326,8 @@ ggsave(filename = paste("Isotopes_trend",".",figure_type, sep = ""), path = path
 ggplot(data = dplyr::filter(Murska_data_longer, is.na(Variable) == FALSE),
        aes(x = Month, y = Value, group = Month)) +
   geom_point(data = Murska_data_longer_month,
-             aes(x = Month, y = Value, group = Month), color = "black", size = 0.7) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
+             aes(x = Month, y = Value, group = Month), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
   geom_text(data = Murska_data_month_statistics,
             aes(x = Month, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -352,8 +353,8 @@ ggsave(filename = paste("Murska_monthly_violin",".",figure_type, sep = ""), path
 ggplot(data = dplyr::filter(Murska_data_longer, Year > 2010 & is.na(Variable) == FALSE),
        aes(x = Season, y = Value, group = Season)) +
   geom_point(data = Murska_data_longer_season,
-             aes(x = Season, y = Value, group = Season), color = "black", size = 0.7) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
+             aes(x = Season, y = Value, group = Season), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
   geom_text(data = Murska_data_season_statistics,
             aes(x = Season, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -377,7 +378,7 @@ ggsave(filename = paste("Murska_seasonal_violin",".",figure_type, sep = ""), pat
 # Sigma plot & T
 ggplot(data = dplyr::filter(Murska_data_longer_sigma, Variable_size == "T" & Value_size > 0),
        aes(x = δ18O, y = δ2H, size =  Value_size)) +
-  geom_point(fill = "grey", color = "black", shape = 21) +
+  geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = 7.76, intercept = 9.91) +
   annotate("text", x = -10, y = -10,
            label = "δ2H = (7.77±0.08)δ18O + (7.61±0.71)", size = 2.7) +
@@ -407,7 +408,7 @@ ggsave(filename = paste("Murska_sigma_plot_T",".",figure_type, sep = ""), path =
 # Sigma plot & P
 ggplot(data = dplyr::filter(Murska_data_longer_sigma, Variable_size == "P" & Value_size > 0),
        aes(x = δ18O, y = δ2H, size =  Value_size)) +
-  geom_point(fill = "grey", color = "black", shape = 21) +
+  geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = 7.76, intercept = 9.91) +
   annotate("text", x = -10, y = -10,
            label = "δ2H = (7.77±0.08)δ18O + (7.61±0.71)", size = 2.7) +
