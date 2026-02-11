@@ -75,7 +75,8 @@ Ljubljana_meteo_data_yearly <- Ljubljana_meteo_data_long %>%
     TRUE ~ NA
   ))
 
-#write.csv(Ljubljana_meteo_data_yearly, file = "Ljubljana_year_statistics.csv", row.names = FALSE)
+# Save yearly meteorological data into a .csv table
+write.csv(Ljubljana_meteo_data_yearly, file = file.path(path_tables, "Ljubljana_yearly_meteorological_statistics.csv"), row.names = FALSE)
 
 Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data, Ljubljana_filename), trim_ws = TRUE) %>%
   left_join(Ljubljana_meteo_data %>% dplyr::select(Year, Month, P_reaktor), by = c("Year", "Month")) %>% 
