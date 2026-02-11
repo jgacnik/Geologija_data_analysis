@@ -8,9 +8,10 @@
 install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"))
 
 # CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Article Geologija/Geologija_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_scripts <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
+path_data <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
+path_figures <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
+path_tables <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/tables" # Change to your directory path where you want to save tables, use "/" and not "\"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -22,9 +23,9 @@ dpi_set <- 500
 
 # Load required packages for the current session
 setwd(path_scripts)
-lapply(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"), require, character.only = TRUE)
+lapply(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"), require, character.only = TRUE)
 
-# Calling needed functions
+# Calling needed functions for PWRMA. Located in separate script "Functions_MA&RMA.R"
 source("Functions_MA&RMA.R")
 
 ###############################################################################
@@ -80,26 +81,16 @@ Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data
   left_join(Ljubljana_meteo_data %>% dplyr::select(Year, Month, P_reaktor), by = c("Year", "Month")) %>% 
   dplyr::select(Sample_ID, Station_ID, Name, Year, Month, P, P_reaktor, T, RH, δ18O, δ2H, d, "3H (TU)") %>%
   rename("3H" = "3H (TU)") %>% 
-  mutate(Site = "Ljubljana") %>%
-  mutate(Period = "") %>%
-  mutate(Period = case_when(
-    Year >= 1981 & Year < 1992  ~ "1981\u20131991",
-    Year >= 1992 & Year < 2002  ~ "1992\u20132002",
-    Year >= 2002 & Year < 2013  ~ "2003\u20132013",
-    Year >= 2014 ~ "2014\u20132024",
-    TRUE ~ Period)) %>%
-  mutate(Season = "") %>%
   mutate(Season = case_when(
     Month %in% c(12, 1, 2)  ~ "winter",
     Month %in% c(3, 4, 5)  ~ "spring",
     Month %in% c(6, 7, 8)  ~ "summer",
     Month %in% c(9, 10, 11)  ~ "autumn",
-    TRUE ~ Season)) %>%
+    TRUE ~ NA)) %>%
   mutate(Season = factor(Season, levels = c("winter", "spring", "summer", "autumn"))) %>%
-  mutate(P_δ18O_δ2H = P) %>%
   mutate(P_δ18O_δ2H = case_when(
     is.na(δ18O) | is.na(δ2H) ~ NA,
-    TRUE ~ P_δ18O_δ2H)) %>%
+    TRUE ~ P)) %>%
   mutate(P_3H = case_when(
     is.na(`3H`) ~ NA,
     TRUE ~ P)) %>%
@@ -109,9 +100,7 @@ Ljubljana_data <- read_xlsx(sheet = "Data Ljubljana", path = file.path(path_data
   mutate(P_RE_3H = case_when(
     is.na(`3H`) ~ NA,
     TRUE ~ P_reaktor)) %>%
-  mutate(Date = as.POSIXct(make_date(Year, Month)),
-         time_since_start = interval(min(Date), Date) %/% months(1),
-         Date = as.Date(make_date(Year, Month)))
+  mutate(Date = as.Date(make_date(Year, Month)))
 
 Ljubljana_data_cor <- Ljubljana_data %>% 
   dplyr::select(δ18O, δ2H, d, "3H", T, P, RH) %>%
@@ -134,7 +123,6 @@ Ljubljana_data_longer_sigma <-  Ljubljana_data %>%
   mutate(Variable_size = factor(Variable_size, levels = c("T", "P")))
 
 Ljubljana_data_longer_month <- Ljubljana_data %>%
-  dplyr::filter(Year > 2010) %>% 
   group_by(Month) %>%
   summarise(mean_T = mean(T, na.rm = TRUE),
             mean_P = mean(P, na.rm = TRUE),
@@ -156,7 +144,6 @@ Ljubljana_data_longer_month <- Ljubljana_data %>%
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
 Ljubljana_data_longer_season <- Ljubljana_data %>%
-  dplyr::filter(Year > 2010) %>% 
   group_by(Season) %>%
   summarise(mean_T = mean(T, na.rm = TRUE),
             mean_P = mean(P, na.rm = TRUE),
@@ -178,7 +165,6 @@ Ljubljana_data_longer_season <- Ljubljana_data %>%
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
 Ljubljana_data_longer_year <- Ljubljana_data %>%
-  dplyr::filter(Year > 2010) %>% 
   group_by(Year) %>%
   summarise(weighted_mean_δ18O_BE = sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
             weighted_mean_δ2H_BE = sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
@@ -209,7 +195,6 @@ dm.test(Ljubljana_data_longer_year$Bežigrad_weighted_mean_3H_BE,
         Ljubljana_data_longer_year$Reaktor_weighted_mean_3H_RE, h = 1, power = 2)
 
 Ljubljana_data_period_statistics <- Ljubljana_data %>% 
-  dplyr::filter(Year > 2010) %>% 
   mutate(P_weighting = P) %>%
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P), names_to = "Variable", values_to = "Value") %>%
   group_by(Variable) %>%
@@ -232,10 +217,10 @@ Ljubljana_data_period_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P")))
 
-#write.csv(Ljubljana_data_period_statistics, "Ljubljana_period_statistics.csv", row.names = FALSE)
+# Save period statistics in a table
+write.csv(Ljubljana_data_period_statistics, file = file.path(path_tables, "Ljubljana_period_statistics.csv"), row.names = FALSE)
 
 Ljubljana_data_month_statistics <- Ljubljana_data %>% 
-  dplyr::filter(Year > 2010) %>% 
   mutate(P_weighting = P) %>%
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
   group_by(Variable, Month) %>%
@@ -260,10 +245,10 @@ Ljubljana_data_month_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-#write.csv(Ljubljana_data_month_statistics, "Ljubljana_month_statistics.csv", row.names = FALSE)
+# Save monthly statistics in a table
+write.csv(Ljubljana_data_month_statistics, file = file.path(path_tables, "Ljubljana_month_statistics.csv"), row.names = FALSE)
 
 Ljubljana_data_season_statistics <- Ljubljana_data %>% 
-  dplyr::filter(Year > 2010) %>%
   mutate(P_weighting = P) %>%
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
   group_by(Variable, Season) %>%
@@ -288,10 +273,11 @@ Ljubljana_data_season_statistics <- Ljubljana_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-#write.csv(Ljubljana_data_season_statistics, "Ljubljana_seasonal_statistics.csv", row.names = FALSE)
+# Save seasonal statistics in a table
+write.csv(Ljubljana_data_season_statistics, file = file.path(path_tables, "Ljubljana_seasonal_statistics.csv"), row.names = FALSE)
 
 Ljubljana_data_year_slopes_2011_2024 <- Ljubljana_data %>%
-  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010) %>%
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H)) %>%
   rename("P_bezigrad" = P) %>% 
   pivot_longer(cols = c("P_bezigrad", "P_reaktor"), names_to = "P_type", values_to = "P_amount") %>% 
   group_by(P_type, Year) %>%
@@ -311,11 +297,12 @@ Ljubljana_data_year_slopes_2011_2024 <- Ljubljana_data %>%
   mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
          LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
 
-#write.csv(Ljubljana_data_year_slopes_2011_2024, "Yearly_regressions_comparison_2.csv", row.names = FALSE)
+# Save yearly RMA/MA regression statistics in a table
+write.csv(Ljubljana_data_year_slopes_2011_2024, file = file.path(path_tables, "Ljubljana_yearly_regression_statistics.csv"), row.names = FALSE)
 
-# d18O/d2H versus T regresssions and correlations, STATS
+# d18O/d2H versus T regressions and correlations, STATS
 Ljubljana_T_regression <- Ljubljana_data %>% 
-  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010)
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H))
 
 a <- lm(`δ18O` ~ T, data =  Ljubljana_T_regression) 
 summary(a)
@@ -325,7 +312,7 @@ summary(b)
 cor(x = Ljubljana_data$T, y = Ljubljana_data$δ2H, use = "pairwise.complete.obs")
 
 Ljubljana_T_regression_hrastje <- Ljubljana_data %>% 
-  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & year(Date) > 2010) %>% 
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H)) %>% 
   left_join(dplyr::select(Ljubljana_meteo_data, c("Date", "T_hrastje")), by = "Date")
 
 a_hrastje <- lm(`δ18O` ~ T_hrastje, data =  Ljubljana_T_regression_hrastje)
@@ -341,40 +328,31 @@ cor(x = Ljubljana_meteo_data$T_hrastje, y = Ljubljana_data$δ2H, use = "pairwise
 # FIGURE 1
 ###############################################################################
 # Map Slovenia
-shapefile_border_SLO <- ne_countries(scale = 10, continent = "Europe")
-shapefile_names_SLO <- data.frame(
+country_borders <- ne_countries(scale = 10, continent = "Europe")
+country_names <- data.frame(
   Station_name = c("SVN", "AUT", "HRV", "ITA", "HUN"),
   lon = c(14.9, 15, 15.35, 12.5, 17.2),
   lat = c(46.3, 47.5, 45, 46.1, 46.8)
 ) %>%
   st_as_sf(coords = c("lon", "lat"), crs = 4326)
 
-stations_sf <- data.frame(
-  Station_name = c("Ljubljana–Bežigrad", "Ljubljana–JSI", "Ljubljana–Reaktor"),
-  lon = c(14.512352, 14.487778, 14.597046),
-  lat = c(46.065507, 46.041944, 46.094612)
-) %>%
-  st_as_sf(coords = c("lon", "lat"), crs = 4326)
-Ljubljana_sf <- stations_sf %>%
-  dplyr::filter(Station_name == "Ljubljana–Bežigrad") %>%
-  mutate(Station_name = "Ljubljana") %>%
-  rbind(st_as_sf(data.frame(
-    Station_name = c("Vienna", "Portorož"),
-    lon = c(16.37250, 13.5799694),
-    lat = c(48.20833, 45.5166333)
-  ), coords = c("lon", "lat"), crs = 4326))
+station_Ljubljana <- st_as_sf(data.frame(
+    Station_name = c("Ljubljana"),
+    lon = c(14.512352),
+    lat = c(46.065507)
+  ), coords = c("lon", "lat"), crs = 4326)
 
 ggplot() +
-  geom_sf(data = shapefile_border_SLO, fill = NA) +
-  geom_sf(data = dplyr::filter(shapefile_border_SLO, sov_a3 == "SVN"), fill = "grey85") +
-  geom_text(data = shapefile_names_SLO, aes(x = st_coordinates(geometry)[,1], 
-                                            y = st_coordinates(geometry)[,2], 
-                                            label = Station_name),
+  geom_sf(data = country_borders, fill = NA) +
+  geom_sf(data = dplyr::filter(country_borders, sov_a3 == "SVN"), fill = "grey85") +
+  geom_text(data = country_names, aes(x = st_coordinates(geometry)[,1],
+                                      y = st_coordinates(geometry)[,2],
+                                      label = Station_name),
             size = 1.8) +
-  geom_sf(data = dplyr::filter(Ljubljana_sf, Station_name == "Ljubljana"), fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
-  geom_text(data = dplyr::filter(Ljubljana_sf, Station_name == "Ljubljana"), aes(x = st_coordinates(geometry)[,1], 
-                                     y = st_coordinates(geometry)[,2], 
-                                     label = Station_name),
+  geom_sf(data = station_Ljubljana, fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
+  geom_text(data = station_Ljubljana, aes(x = st_coordinates(geometry)[,1],
+                                          y = st_coordinates(geometry)[,2],
+                                          label = Station_name),
             color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
   coord_sf(xlim = c(12, 17.5), ylim = c(44.5, 47.5)) +
   theme_bw() +
@@ -451,7 +429,7 @@ ggsave(filename = paste("Ljubljana_meteo_monthly",".",figure_type, sep = ""), pa
 ###############################################################################
 # FIGURE 3
 ###############################################################################
-# Isotopes timeseries, all
+# Isotopes time series, all
 ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & !(Variable %in% c("T", "P", "RH"))), aes(x = Date, y = Value)) +
   geom_line(linewidth = 0.3) +
   geom_text(data = dplyr::filter(Ljubljana_data_period_statistics, !(Variable %in% c("T", "P", "RH"))),
@@ -486,11 +464,11 @@ ggsave(filename = paste("Isotopes_trend",".",figure_type, sep = ""), path = path
 # FIGURE 4
 ###############################################################################
 # Monthly plot
-ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & is.na(Variable) == FALSE),
+ggplot(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE),
        aes(x = Month, y = Value, group = Month)) +
   geom_point(data = Ljubljana_data_longer_month,
-             aes(x = Month, y = Value, group = Month), color = "black", size = 0.7) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
+             aes(x = Month, y = Value, group = Month), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
   geom_text(data = Ljubljana_data_month_statistics,
             aes(x = Month, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -513,11 +491,11 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & is.na(Variable)
 ggsave(filename = paste("Ljubljana_monthly_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 95, height = 180, units = "mm")
 
 # Seasonal plot
-ggplot(data = dplyr::filter(Ljubljana_data_longer, Year > 2010 & is.na(Variable) == FALSE),
+ggplot(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE),
        aes(x = Season, y = Value, group = Season)) +
   geom_point(data = Ljubljana_data_longer_season,
-             aes(x = Season, y = Value, group = Season), color = "black", size = 0.7) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3) +  # Trim = FALSE to avoid cutting off the tails
+             aes(x = Season, y = Value, group = Season), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
   geom_text(data = Ljubljana_data_season_statistics,
             aes(x = Season, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -541,7 +519,7 @@ ggsave(filename = paste("Ljubljana_seasonal_violin",".",figure_type, sep = ""), 
 # Sigma plot & T
 ggplot(data = dplyr::filter(Ljubljana_data_longer_sigma, Variable_size == "T" & Value_size > 0),
        aes(x = δ18O, y = δ2H, size =  Value_size)) +
-  geom_point(fill = "grey", color = "black", shape = 21) +
+  geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = 7.76, intercept = 9.91) +
   annotate("text", x = -10, y = -10,
            label = "δ2H = (7.76±0.07)δ18O + (9.11±0.65)", size = 2.7) +
@@ -571,7 +549,7 @@ ggsave(filename = paste("Ljubljana_sigma_plot_T",".",figure_type, sep = ""), pat
 # Sigma plot & P
 ggplot(data = dplyr::filter(Ljubljana_data_longer_sigma, Variable_size == "P" & Value_size > 0),
        aes(x = δ18O, y = δ2H, size =  Value_size)) +
-  geom_point(fill = "grey", color = "black", shape = 21) +
+  geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = 7.76, intercept = 9.91) +
   annotate("text", x = -10, y = -10,
            label = "δ2H = (7.76±0.07)δ18O + (9.11±0.65)", size = 2.7) +
