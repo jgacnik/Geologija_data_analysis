@@ -469,7 +469,10 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE),
        aes(x = Month, y = Value, group = Month)) +
   geom_point(data = Ljubljana_data_longer_month,
              aes(x = Month, y = Value, group = Month), color = "black", size = 0.7, na.rm = TRUE) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE & Variable != "P") ,
+              trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE & Variable == "P") ,
+              trim = TRUE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = TRUE to cut the tails for P amont
   geom_text(data = Ljubljana_data_month_statistics,
             aes(x = Month, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -478,7 +481,7 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE),
                      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
                      expand = expansion(mult = 0.01, add = 0)) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.3, 0.1))) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.4, 0.1))) +
   facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 8, colour = "black"),
@@ -496,11 +499,14 @@ ggplot(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE),
        aes(x = Season, y = Value, group = Season)) +
   geom_point(data = Ljubljana_data_longer_season,
              aes(x = Season, y = Value, group = Season), color = "black", size = 0.7, na.rm = TRUE) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE & Variable != "P"),
+              trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Ljubljana_data_longer, is.na(Variable) == FALSE & Variable == "P"),
+              trim = TRUE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = TRUE to cutting off the tails for P
   geom_text(data = Ljubljana_data_season_statistics,
             aes(x = Season, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.3, 0.1))) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.4, 0.1))) +
   labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; A ("^"3"*"H) [TU]; T [°C], P [mm], RH [%]")) +
   facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
   theme_bw() +
