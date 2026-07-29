@@ -5,31 +5,34 @@
 # R version: 4.4.2
 ###############################################################################
 # DO THIS STEP ONLY THE FIRST TIME! Installation of needed packages
-install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"))
+install.packages(c("rnaturalearth", "sf", "slider", "deming", "ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"))
 
-# CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
-path_tables <- "C:/Users/gacnik/OneDrive - ijs.si/Jan 2023+/Voda izotopi Polona/Murska Sobota/Data_analysis_MS/tables" # Change to your directory path where you want to save figures, use "/" and not "\"
+# Paths relative to the Data_analysis_MS.Rproj project root
+path_scripts <- "scripts"
+path_data <- "data"
+path_figures <- "figures"
+path_tables <- "tables"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
 ###############################################################################
-Murska_filename <- "Murska_sobota_2016-2024.xlsx"
+Murska_filename <- "Murska_Sobota_2016-2024.xlsx"
+Hungary_meteo_filename <- "Torokkoppany_meteo_2016-2024.xlsx"
+Graz_filename <- "Graz_2016-2024.xlsx"
+Hrascica_filename <- "Hrascica.xlsx"
 figure_type <- "png"
 dpi_set <- 500
 
 # Load required packages for the current session
-setwd(path_scripts)
-lapply(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"), require, character.only = TRUE)
+lapply(c("rnaturalearth", "sf", "slider", "deming", "ggcorrplot", "forecast", "mblm", "tidyverse", "readxl"), require, character.only = TRUE)
 
 # Calling needed functions
-source("Functions_MA&RMA.R")
+source(file.path(path_scripts, "Functions_MA&RMA.R"))
 
 ###############################################################################
 # Data reading, adjusting, and filtering
 ###############################################################################
+# Murska Sobota data
 Murska_data <- read_xlsx(sheet = "Data MS", path = file.path(path_data, Murska_filename), trim_ws = TRUE) %>%
   dplyr::select(Sample_ID, Station_ID, Name, Year, Month, P, T, RH, δ18O, δ2H, d, "3H (TU)") %>%
   rename("3H" = "3H (TU)") %>% 
@@ -90,6 +93,24 @@ Murska_data_longer_month <- Murska_data %>%
     TRUE ~ Variable)) %>%
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
+Murska_data_monthly_summary <- Murska_data %>%
+  group_by(Month) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_3H = round(sum(`3H` * ((P_3H/sum(P_3H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+            mean_P = round(mean(P, na.rm = TRUE), digits = 0)) %>%
+  left_join(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+              mutate(Month = month(date)) %>%
+              group_by(Month) %>%
+              summarise(mean_T_KO = round(mean(t, na.rm = TRUE), digits = 1),
+                        sum_P_KO = round(mean(p, na.rm = TRUE), digits = 0)),
+           by = "Month")
+
+# Save monthly statistics into a .csv table
+#write.csv(Murska_data_monthly_summary, file = file.path(path_tables, "Murska_monthly_statistics.csv"), row.names = FALSE)
+
 Murska_data_longer_season <- Murska_data %>%
   group_by(Season) %>%
   summarise(mean_T = mean(T, na.rm = TRUE),
@@ -111,6 +132,49 @@ Murska_data_longer_season <- Murska_data %>%
     TRUE ~ Variable)) %>%
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
+Murska_data_seasonal_summary <- Murska_data %>%
+  group_by(Season) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_3H = round(sum(`3H` * ((P_3H/sum(P_3H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1)) %>%
+  left_join(Murska_data %>%
+              group_by(Year, Season) %>%
+              summarise(sum_P = sum(P, na.rm = TRUE), .groups = "drop") %>%
+              group_by(Season) %>%
+              summarise(mean_sum_P = round(mean(sum_P, na.rm = TRUE), digits = 0), .groups = "drop"),
+            by = "Season") %>%
+  left_join(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+              mutate(Year = year(date),
+                     Month = month(date)) %>%
+              mutate(Season = case_when(
+                Month %in% c(12, 1, 2)  ~ "winter",
+                Month %in% c(3, 4, 5)  ~ "spring",
+                Month %in% c(6, 7, 8)  ~ "summer",
+                Month %in% c(9, 10, 11)  ~ "autumn",
+                TRUE ~ NA)) %>%
+              group_by(Season) %>%
+              summarise(mean_T_KO = round(mean(t, na.rm = TRUE), digits = 1)),
+            by = "Season") %>%
+  left_join(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+              mutate(Year = year(date),
+                     Month = month(date)) %>%
+              mutate(Season = case_when(
+                Month %in% c(12, 1, 2)  ~ "winter",
+                Month %in% c(3, 4, 5)  ~ "spring",
+                Month %in% c(6, 7, 8)  ~ "summer",
+                Month %in% c(9, 10, 11)  ~ "autumn",
+                TRUE ~ NA)) %>%
+              group_by(Year, Season) %>%
+              summarise(sum_P = sum(p, na.rm = TRUE), .groups = "drop") %>%
+              group_by(Season) %>%
+              summarise(mean_sum_P_KO = round(mean(sum_P, na.rm = TRUE), digits = 0), .groups = "drop"),
+            by = "Season")
+
+# Save seasonal statistics into a .csv table
+#write.csv(Murska_data_seasonal_summary, file = file.path(path_tables, "Murska_seasonal_statistics.csv"), row.names = FALSE)
+
 Murska_data_longer_year <- Murska_data %>%
   group_by(Year) %>%
   summarise(weighted_mean_δ18O = sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
@@ -118,12 +182,27 @@ Murska_data_longer_year <- Murska_data %>%
             weighted_mean_d = sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE),
             weighted_mean_3H = sum(`3H` * ((P_3H/sum(P_3H, na.rm = TRUE))), na.rm = TRUE),
             mean_T = mean(T),
-            mean_P = mean(P)) %>%
-  pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, weighted_mean_3H, mean_T, mean_P), names_to = "Variable", values_to = "Value") %>% 
+            sum_P = sum(P)) %>%
+  pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, weighted_mean_3H, mean_T, sum_P), names_to = "Variable", values_to = "Value") %>%
   pivot_wider(names_from = c("Variable"), values_from = "Value", names_sep = "_") 
 
+Murska_data_yearly_summary <- Murska_data %>%
+  group_by(Year) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_3H = round(sum(`3H` * ((P_3H/sum(P_3H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+            sum_P = round(sum(P, na.rm = TRUE), digits = 0)) %>%
+  left_join(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+          mutate(Year = year(date)) %>%
+          group_by(Year) %>%
+          summarise(mean_T_KO = round(mean(t, na.rm = TRUE), digits = 1),
+                    sum_P_KO = round(sum(p, na.rm = TRUE), digits = 0)),
+          by = "Year")
+
 # Save yearly statistics into a .csv table
-write.csv(Murska_data_longer_year, file = file.path(path_tables, "Murska_year_statistics.csv"), row.names = FALSE)
+#write.csv(Murska_data_yearly_summary, file = file.path(path_tables, "Murska_yearly_statistics.csv"), row.names = FALSE)
 
 Murska_data_period_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
@@ -148,8 +227,27 @@ Murska_data_period_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P")))
 
+
+Murska_data_period_summary <- Murska_data %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P_δ18O_δ2H/sum(P_δ18O_δ2H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_3H = round(sum(`3H` * ((P_3H/sum(P_3H, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1)) %>%
+  cbind(Murska_data %>%
+          group_by(Year) %>%
+          summarise(sum_P = sum(P, na.rm = TRUE), .groups = "drop") %>%
+          summarise(mean_sum_P = round(mean(sum_P, na.rm = TRUE), digits = 0), .groups = "drop")) %>%
+  cbind(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+        summarise(mean_T_KO = round(mean(t, na.rm = TRUE), digits = 1))) %>%
+  cbind(read_xlsx(path = file.path(path_data, Hungary_meteo_filename), trim_ws = TRUE) %>%
+          mutate(Year = year(date)) %>%
+          group_by(Year) %>%
+          summarise(sum_P = sum(p, na.rm = TRUE), .groups = "drop") %>%
+          summarise(mean_sum_P_KO = round(mean(sum_P, na.rm = TRUE), digits = 0), .groups = "drop"))
+
 # Save whole period statistics into a .csv table
-write.csv(Murska_data_period_statistics, file = file.path(path_tables, "Murska_period_statistics.csv"), row.names = FALSE)
+#write.csv(Murska_data_period_summary, file = file.path(path_tables, "Murska_period_statistics.csv"), row.names = FALSE)
 
 Murska_data_month_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
@@ -176,9 +274,6 @@ Murska_data_month_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-# Save monthly statistics into a .csv table
-write.csv(Murska_data_month_statistics, file = file.path(path_tables, "Murska_month_statistics.csv"), row.names = FALSE)
-
 Murska_data_season_statistics <- Murska_data %>% 
   mutate(P_weighting = P) %>%
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
@@ -204,9 +299,6 @@ Murska_data_season_statistics <- Murska_data %>%
     TRUE ~ Variable)) %>% 
   mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "A^3*H", "T", "P", "RH")))
 
-# Save seasonal statistics into a .csv table
-write.csv(Murska_data_season_statistics, file = file.path(path_tables, "Murska_seasonal_statistics.csv"), row.names = FALSE)
-
 Murska_data_year_slopes_2016_2024 <- Murska_data %>%
   dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>% 
   group_by(Year) %>% 
@@ -217,13 +309,28 @@ Murska_data_year_slopes_2016_2024 <- Murska_data %>%
             intercept_RMA = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA,
             intercept_error_RMA = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA,
             intercept_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA_weighted,
-            intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted) %>%
-  mutate(across(everything(), ~round(., digits = 2))) %>% 
+            intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted,
+            EIV_fit = list(
+              deming(δ2H ~ δ18O, ystd = rep(2, n()), xstd = rep(0.1, n()), jackknife = TRUE, conf = 0.95)
+            )) %>%
+  mutate(intercept_EIV = vapply(EIV_fit, \(fit) unname(fit$coefficient[1]), numeric(1)),
+         slope_EIV = vapply(EIV_fit, \(fit) unname(fit$coefficient[2]), numeric(1)),
+         intercept_error_EIV = vapply(EIV_fit, \(fit) sqrt(diag(fit$variance))[1], numeric(1)),
+         slope_error_EIV = vapply(EIV_fit, \(fit) sqrt(diag(fit$variance))[2], numeric(1)),
+         intercept_lower_0.95 = vapply(EIV_fit, \(fit) unname(fit$ci[1]), numeric(1)),
+         intercept_higher_0.95 = vapply(EIV_fit, \(fit) unname(fit$ci[3]), numeric(1)),
+         slope_lower_0.95 = vapply(EIV_fit, \(fit) unname(fit$ci[2]), numeric(1)),
+         slope_higher_0.95 = vapply(EIV_fit, \(fit) unname(fit$ci[4]), numeric(1)),
+         SSWR = vapply(EIV_fit, \(fit) fit$sigma^2 * (fit$n - 2), numeric(1))
+         ) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2))) %>%
   mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
-         LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
+         LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"),
+         LMWL_EIV = sprintf("d2H = (%.2f ± %.2f) d18O + (%.2f ± %.2f)", slope_EIV, slope_error_EIV, intercept_EIV, intercept_error_EIV)) %>%
+  dplyr::select(-EIV_fit)
 
 # Save yearly RMA/MA regression statistics into a .csv table
-write.csv(Murska_data_year_slopes_2016_2024, file = file.path(path_tables, "Murska_yearly_regression_statistics.csv"), row.names = FALSE)
+#write.csv(Murska_data_year_slopes_2016_2024, file = file.path(path_tables, "Murska_yearly_regression_statistics.csv"), row.names = FALSE)
 
 # d18O/d2H versus T regresssions and correlations, STATS
 Murska_T_regression <- Murska_data %>% 
@@ -235,6 +342,305 @@ cor(x = Murska_data$T, y = Murska_data$δ18O, use = "pairwise.complete.obs")
 b <- lm(`δ2H` ~ T, data =  Murska_data)
 summary(b)
 cor(x = Murska_data$T, y = Murska_data$δ2H, use = "pairwise.complete.obs")
+
+###############################################################################
+# Hungarian data together
+Hungarian_data <- read_xlsx(sheet = "Data all", path = file.path(path_data, Murska_filename), trim_ws = TRUE) %>%
+  dplyr::select(Name, Year, Month, P, T, δ18O, δ2H, d) %>%
+  mutate(Season = case_when(
+    Month %in% c(12, 1, 2)  ~ "winter",
+    Month %in% c(3, 4, 5)  ~ "spring",
+    Month %in% c(6, 7, 8)  ~ "summer",
+    Month %in% c(9, 10, 11)  ~ "autumn",
+    TRUE ~ NA)) %>%
+  mutate(Season = factor(Season, levels = c("winter", "spring", "summer", "autumn"))) %>%
+  mutate(Date = as.Date(make_date(Year, Month)))
+
+
+Hungarian_data_longer <-  Hungarian_data %>%
+  dplyr::filter(Name != "Murska Sobota - Rakičan") %>%
+  pivot_longer(cols = c(δ18O, δ2H, d, T, P), names_to = "Variable", values_to = "Value") %>%
+  mutate(Variable_color = Variable) %>%
+  mutate(Variable = case_when(
+    Variable == "δ18O" ~ "italic(delta)^18*O",
+    Variable == "δ2H" ~ "italic(delta)^2*H",
+    Variable == "d" ~ "d-excess",
+    TRUE ~ Variable
+  )) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
+
+Hungarian_data_longer_sigma <- Hungarian_data %>%
+  pivot_longer(cols = c("T", "P"), names_to = "Variable_size", values_to = "Value_size") %>%
+  mutate(Variable_size = factor(Variable_size, levels = c("T", "P"))) %>%
+  dplyr::filter(!(Name %in% c("Törökkoppány", "Tamási"))) %>%
+  mutate(Name = case_when(
+    Name == "Murska Sobota - Rakičan" ~ "Ledava watershed",
+    TRUE ~ Name
+  ))
+
+
+Hungarian_data_period_summary <- Hungarian_data %>%
+  group_by(Name) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1)) %>%
+  left_join(Hungarian_data %>%
+              group_by(Name, Year) %>%
+              summarise(sum_P = sum(P, na.rm = TRUE), .groups = "drop") %>%
+              group_by(Name) %>%
+              summarise(mean_sum_P = round(mean(sum_P, na.rm = TRUE), digits = 0), .groups = "drop"),
+            by = "Name")
+
+Hungarian_data_longer_month <- Hungarian_data %>%
+  dplyr::filter(!(Name %in% c("Murska Sobota - Rakičan", "Koppány watershed"))) %>%
+  group_by(Month) %>%
+  summarise(mean_T = mean(T, na.rm = TRUE),
+            mean_P = mean(P, na.rm = TRUE),
+            weighted_mean_δ18O = sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_δ2H = sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_d = sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE)) %>%
+  pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, mean_T, mean_P), names_to = "Variable", values_to = "Value") %>%
+  mutate(Variable = case_when(
+    grepl("_δ18O", Variable) ~ "italic(delta)^18*O",
+    grepl("_δ2H", Variable) ~ "italic(delta)^2*H",
+    grepl("_d", Variable) ~ "d-excess",
+    grepl("_T", Variable) ~ "T",
+    grepl("_P", Variable) ~ "P",
+    TRUE ~ Variable)) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
+
+Hungarian_data_longer_season <- Hungarian_data %>%
+  dplyr::filter(!(Name %in% c("Murska Sobota - Rakičan", "Koppány watershed"))) %>%
+  group_by(Season) %>%
+  summarise(mean_T = mean(T, na.rm = TRUE),
+            mean_P = mean(P, na.rm = TRUE),
+            weighted_mean_δ18O = sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_δ2H = sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE),
+            weighted_mean_d = sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE)) %>%
+  pivot_longer(cols = c(weighted_mean_δ18O, weighted_mean_δ2H, weighted_mean_d, mean_T, mean_P), names_to = "Variable", values_to = "Value") %>%
+  mutate(Variable = case_when(
+    grepl("_δ18O", Variable) ~ "italic(delta)^18*O",
+    grepl("_δ2H", Variable) ~ "italic(delta)^2*H",
+    grepl("_d", Variable) ~ "d-excess",
+    grepl("_T", Variable) ~ "T",
+    grepl("_P", Variable) ~ "P",
+    TRUE ~ Variable)) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
+
+Hungarian_data_month_statistics <- Hungarian_data %>%
+  dplyr::filter(!(Name %in% c("Murska Sobota - Rakičan", "Koppány watershed"))) %>%
+  mutate(P_weighting = P) %>%
+  pivot_longer(cols = c(δ18O, δ2H, d, T, P), names_to = "Variable", values_to = "Value") %>%
+  group_by(Variable, Month) %>%
+  reframe(Mean = mean(Value, na.rm = TRUE),
+          "Weighted mean" = sum(Value * ((P_weighting /sum(P_weighting , na.rm = TRUE))), na.rm = TRUE),
+          StDev = sd(Value, na.rm = TRUE),
+          Median = median(Value, na.rm = TRUE),
+          Q1 = quantile(Value, 0.25, na.rm = TRUE),
+          Q3 = quantile(Value, 0.75, na.rm = TRUE),
+          Min = min(Value, na.rm = TRUE),
+          Max = max (Value, na.rm = TRUE),
+          n = sum(!is.na(Value))) %>%
+  mutate(across(where(is.numeric), ~ round(.x, digits = 1))) %>%
+  mutate(Variable = case_when(
+    grepl("δ18O", Variable) ~ "italic(delta)^18*O",
+    grepl("δ2H", Variable) ~ "italic(delta)^2*H",
+    grepl("d", Variable) ~ "d-excess",
+    grepl("T", Variable) ~ "T",
+    grepl("P", Variable) ~ "P",
+    TRUE ~ Variable)) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
+
+Hungarian_data_season_statistics <- Hungarian_data %>%
+  dplyr::filter(!(Name %in% c("Murska Sobota - Rakičan", "Koppány watershed"))) %>%
+  mutate(P_weighting = P) %>%
+  pivot_longer(cols = c(δ18O, δ2H, d,  T, P), names_to = "Variable", values_to = "Value") %>%
+  group_by(Variable, Season) %>%
+  reframe(Mean = mean(Value, na.rm = TRUE),
+          "Weighted mean" = sum(Value * ((P_weighting /sum(P_weighting , na.rm = TRUE))), na.rm = TRUE),
+          StDev = sd(Value, na.rm = TRUE),
+          Median = median(Value, na.rm = TRUE),
+          Q1 = quantile(Value, 0.25, na.rm = TRUE),
+          Q3 = quantile(Value, 0.75, na.rm = TRUE),
+          Min = min(Value, na.rm = TRUE),
+          Max = max (Value, na.rm = TRUE),
+          n = sum(!is.na(Value))) %>%
+  mutate(across(where(is.numeric), ~ round(.x, digits = 1))) %>%
+  mutate(Variable = case_when(
+    grepl("δ18O", Variable) ~ "italic(delta)^18*O",
+    grepl("δ2H", Variable) ~ "italic(delta)^2*H",
+    grepl("d", Variable) ~ "d-excess",
+    grepl("T", Variable) ~ "T",
+    grepl("P", Variable) ~ "P",
+    TRUE ~ Variable)) %>%
+  mutate(Variable = factor(Variable, levels = c("italic(delta)^18*O", "italic(delta)^2*H", "d-excess", "T", "P")))
+
+Hungarian_data_season_summary <- Hungarian_data %>%
+  dplyr::filter(Name != "Tamási") %>%
+  group_by(Name, Season) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+            sum_P = round(sum(P, na.rm = TRUE), digits = 0)) %>%
+  rbind(Hungarian_data %>%
+          group_by(Season) %>%
+          summarise(weighted_mean_d2H = round(sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+                    weighted_mean_d18O = round(sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+                    weighted_mean_d = round(sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+                    mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+                    sum_P = round(sum(P, na.rm = TRUE), digits = 0)) %>%
+          mutate(Name = "All data"))
+
+# Save seasonal statistics into a .csv table
+write.csv(Hungarian_data_season_summary, file = file.path(path_tables, "Hungarian_seasonal_statistics.csv"), row.names = FALSE)
+
+Hungarian_data_period_summary <- Hungarian_data %>%
+  group_by(Name) %>%
+  summarise(weighted_mean_d2H = round(sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            weighted_mean_d18O = round(sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+            weighted_mean_d = round(sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+            mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+            sum_P = round(sum(P, na.rm = TRUE), digits = 0)) %>%
+  rbind(Hungarian_data %>%
+          summarise(weighted_mean_d2H = round(sum(δ2H * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+                    weighted_mean_d18O = round(sum(δ18O * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 2),
+                    weighted_mean_d = round(sum(d * ((P/sum(P, na.rm = TRUE))), na.rm = TRUE), digits = 1),
+                    mean_T = round(mean(T, na.rm = TRUE), digits = 1),
+                    sum_P = round(sum(P, na.rm = TRUE), digits = 0)) %>%
+          mutate(Name = "All data"))
+
+# Save whole period statistics into a .csv table
+write.csv(Hungarian_data_period_summary, file = file.path(path_tables, "Hungarian_period_statistics.csv"), row.names = FALSE)
+
+Hungarian_data_slopes <- Hungarian_data %>%
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>%
+  group_by(Name) %>%
+  summarise(slope_RMA = RMA_weighted(δ18O, δ2H, P)$slopes$RMA,
+            slope_error_RMA =  RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA,
+            slope_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$slopes$RMA_weighted,
+            slope_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA_weighted,
+            intercept_RMA = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA,
+            intercept_error_RMA = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA,
+            intercept_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA_weighted,
+            intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted) %>%
+  rbind(Hungarian_data %>%
+          dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>%
+          dplyr::filter(Name != "Koppány watershed") %>%
+          summarise(slope_RMA = RMA_weighted(δ18O, δ2H, P)$slopes$RMA,
+                    slope_error_RMA =  RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA,
+                    slope_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$slopes$RMA_weighted,
+                    slope_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA_weighted,
+                    intercept_RMA = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA,
+                    intercept_error_RMA = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA,
+                    intercept_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA_weighted,
+                    intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted) %>%
+          mutate(Name = "All data")) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2))) %>%
+  mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
+         LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
+
+# Save LMWL regression statistics into a .csv table
+write.csv(dplyr::select(Hungarian_data_slopes, Name, LMWL_RMA, LMWL_PWRMA), file = file.path(path_tables, "Hungarian_regression_statistics.csv"), row.names = FALSE)
+
+RMA_slope_MS <- Hungarian_data_slopes$slope_RMA[Hungarian_data_slopes$Name == "Murska Sobota - Rakičan"]
+RMA_error_MS <- Hungarian_data_slopes$slope_error_RMA[Hungarian_data_slopes$Name == "Murska Sobota - Rakičan"]
+RMA_slope_T <- Hungarian_data_slopes$slope_RMA[Hungarian_data_slopes$Name == "Tamási"]
+RMA_error_T <- Hungarian_data_slopes$slope_error_RMA[Hungarian_data_slopes$Name == "Tamási"]
+RMA_slope_KO <- Hungarian_data_slopes$slope_RMA[Hungarian_data_slopes$Name == "Törökkoppány"]
+RMA_error_KO <- Hungarian_data_slopes$slope_error_RMA[Hungarian_data_slopes$Name == "Törökkoppány"]
+RMA_slope_T_KO <- Hungarian_data_slopes$slope_RMA[Hungarian_data_slopes$Name == "Koppány watershed"]
+RMA_error_T_KO <- Hungarian_data_slopes$slope_error_RMA[Hungarian_data_slopes$Name == "Koppány watershed"]
+
+# Comparison 1: Tamási vs Murska Sobota - Rakičan
+t_stat_T_MS <- (RMA_slope_T - RMA_slope_MS) / sqrt(RMA_error_T^2 + RMA_error_MS^2)
+
+# Comparison 2: Törökkoppány vs Murska Sobota - Rakičan
+t_stat_KO_MS <- (RMA_slope_KO - RMA_slope_MS) / sqrt(RMA_error_KO^2 + RMA_error_MS^2)
+
+# Comparison 3: Törökkoppány & Tamási vs Murska Sobota - Rakičan
+t_stat_T_KO_MS <- (RMA_slope_T_KO - RMA_slope_MS) / sqrt(RMA_error_T_KO^2 + RMA_error_MS^2)
+
+# Comparison 4: Tamási vs Törökkoppány
+t_stat_T_KO <- (RMA_slope_T - RMA_slope_KO) / sqrt(RMA_error_T^2 + RMA_error_KO^2)
+
+# Comparison 5: Tamási vs Törökkoppány & Tamási
+t_stat_T_T_KO <- (RMA_slope_T - RMA_slope_T_KO) / sqrt(RMA_error_T^2 + RMA_error_T_KO^2)
+
+# Comparison 6: Törökkoppány vs Törökkoppány & Tamási
+t_stat_KO_T_KO <- (RMA_slope_KO - RMA_slope_T_KO) / sqrt(RMA_error_KO^2 + RMA_error_T_KO^2)
+
+# Print the t-statistics for each pair
+cat("t-statistic for Tamási vs Murska Sobota - Rakičan: ", t_stat_T_MS, "\n")
+cat("t-statistic for Törökkoppány vs Murska Sobota - Rakičan: ", t_stat_KO_MS, "\n")
+cat("t-statistic for Törökkoppány & Tamási vs Murska Sobota - Rakičan: ", t_stat_T_KO_MS, "\n")
+cat("t-statistic for Tamási vs Törökkoppány: ", t_stat_T_KO, "\n")
+cat("t-statistic for Tamási vs Törökkoppány & Tamási: ", t_stat_T_T_KO, "\n")
+cat("t-statistic for Törökkoppány vs Törökkoppány & Tamási: ", t_stat_KO_T_KO, "\n")
+
+# Graz data
+Graz_data <- read_xlsx(sheet = "Data Graz", path = file.path(path_data, Graz_filename), trim_ws = TRUE) %>%
+  dplyr::select(Station_ID, Year, Month, P, T, RH, δ18O, δ2H, d) %>%
+  mutate(Site = "Graz") %>%
+  mutate(Season = case_when(
+    Month %in% c(12, 1, 2)  ~ "winter",
+    Month %in% c(3, 4, 5)  ~ "spring",
+    Month %in% c(6, 7, 8)  ~ "summer",
+    Month %in% c(9, 10, 11)  ~ "autumn",
+    TRUE ~ NA)) %>%
+  mutate(Season = factor(Season, levels = c("winter", "spring", "summer", "autumn"))) %>%
+  mutate(P_δ18O_δ2H = case_when(
+    is.na(δ18O) | is.na(δ2H) ~ NA,
+    TRUE ~ P)) %>%
+  mutate(Date = as.Date(make_date(Year, Month)))
+
+Graz_data_year_slopes_2016_2024 <- Graz_data %>%
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>%
+  summarise(slope_RMA = RMA_weighted(δ18O, δ2H, P)$slopes$RMA,
+            slope_error_RMA =  RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA,
+            slope_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$slopes$RMA_weighted,
+            slope_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA_weighted,
+            intercept_RMA = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA,
+            intercept_error_RMA = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA,
+            intercept_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA_weighted,
+            intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2))) %>%
+  mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
+         LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
+
+# Hrascica data
+Hrascica_data <- read_xlsx( path = file.path(path_data, Hrascica_filename), trim_ws = TRUE) %>%
+  dplyr::select(Year, Month, Precipitation, `Air Temperature`, O18, H2) %>%
+  rename("P" = Precipitation, "T" = `Air Temperature`, δ18O = O18, δ2H = H2) %>%
+  mutate(Site = "Hrascica",
+         d = δ2H - 8 * δ18O) %>%
+  mutate(Season = case_when(
+    Month %in% c(12, 1, 2)  ~ "winter",
+    Month %in% c(3, 4, 5)  ~ "spring",
+    Month %in% c(6, 7, 8)  ~ "summer",
+    Month %in% c(9, 10, 11)  ~ "autumn",
+    TRUE ~ NA)) %>%
+  mutate(Season = factor(Season, levels = c("winter", "spring", "summer", "autumn"))) %>%
+  mutate(P_δ18O_δ2H = case_when(
+    is.na(δ18O) | is.na(δ2H) ~ NA,
+    TRUE ~ P)) %>%
+  mutate(Date = as.Date(make_date(Year, Month)))
+
+Hrascica_data_year_slopes_2016_2024 <- Hrascica_data %>%
+  dplyr::filter(!is.na(δ18O) & !is.na(δ2H) & !is.na(P)) %>%
+  summarise(slope_RMA = RMA_weighted(δ18O, δ2H, P)$slopes$RMA,
+            slope_error_RMA =  RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA,
+            slope_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$slopes$RMA_weighted,
+            slope_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_slopes$RMA_weighted,
+            intercept_RMA = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA,
+            intercept_error_RMA = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA,
+            intercept_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$intercepts$RMA_weighted,
+            intercept_error_RMA_weighted = RMA_weighted(δ18O, δ2H, P)$errors_intercepts$RMA_weighted) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2))) %>%
+  mutate(LMWL_RMA = paste0("d2H = (", slope_RMA, " ± ", slope_error_RMA, ") d18O + (", intercept_RMA, " ± ", intercept_error_RMA, ")"),
+         LMWL_PWRMA = paste0("d2H = (", slope_RMA_weighted," ± ", slope_error_RMA_weighted, ") d18O + (", intercept_RMA_weighted,  " ± ", intercept_error_RMA_weighted, ")"))
+
 
 ###############################################################################
 # PLOTTING
@@ -251,19 +657,11 @@ shapefile_names_SLO <- data.frame(
   st_as_sf(coords = c("lon", "lat"), crs = 4326)
 
 stations_sf <- data.frame(
-  Station_name = c("Murska–Bežigrad", "Murska–JSI", "Murska–Reaktor"),
-  lon = c(14.512352, 14.487778, 14.597046),
-  lat = c(46.065507, 46.041944, 46.094612)
+  Station_name = c("Murska"),
+  lon = c(16.191278),
+  lat = c(46.652078)
 ) %>%
   st_as_sf(coords = c("lon", "lat"), crs = 4326)
-Murska_sf <- stations_sf %>%
-  dplyr::filter(Station_name == "Murska–Bežigrad") %>%
-  mutate(Station_name = "Murska") %>%
-  rbind(st_as_sf(data.frame(
-    Station_name = c("Vienna", "Portorož"),
-    lon = c(16.37250, 13.5799694),
-    lat = c(48.20833, 45.5166333)
-  ), coords = c("lon", "lat"), crs = 4326))
 
 ggplot() +
   geom_sf(data = shapefile_border_SLO, fill = NA) +
@@ -272,8 +670,8 @@ ggplot() +
                                             y = st_coordinates(geometry)[,2], 
                                             label = Station_name),
             size = 1.8) +
-  geom_sf(data = dplyr::filter(Murska_sf, Station_name == "Murska"), fill = "black", size = 0.6, shape = 21, stroke = 0.4) + 
-  geom_text(data = dplyr::filter(Murska_sf, Station_name == "Murska"), aes(x = st_coordinates(geometry)[,1], 
+  geom_sf(data = dplyr::filter(stations_sf, Station_name == "Murska"), fill = "black", size = 0.6, shape = 21, stroke = 0.4) +
+  geom_text(data = dplyr::filter(stations_sf, Station_name == "Murska"), aes(x = st_coordinates(geometry)[,1],
                                      y = st_coordinates(geometry)[,2], 
                                      label = Station_name),
             color = "black", size = 1.6, fontface = "bold", nudge_y = -0.15) +
@@ -289,7 +687,7 @@ ggsave(filename = paste("Map_slovenia",".",figure_type, sep = ""), path = path_f
 # FIGURE 3
 ###############################################################################
 # Isotopes timeseries, all
-ggplot(data = dplyr::filter(Murska_data_longer, Year > 2010 & !(Variable %in% c("T", "P", "RH"))), aes(x = Date, y = Value)) +
+ggplot(data = dplyr::filter(Murska_data_longer, !(Variable %in% c("T", "P", "RH"))), aes(x = Date, y = Value)) +
   geom_line(linewidth = 0.3, na.rm = TRUE) +
   geom_text(data = dplyr::filter(Murska_data_period_statistics, !(Variable %in% c("T", "P", "RH"))),
             aes(x = as.Date("2025-01-01"), y = Max, label = paste0("n = ", n)), # Use y = 0 or another fixed value to position text inside plot
@@ -322,12 +720,15 @@ ggsave(filename = paste("Isotopes_trend",".",figure_type, sep = ""), path = path
 ###############################################################################
 # FIGURE 4
 ###############################################################################
+# Murska Sobota
 # Monthly plot
-ggplot(data = dplyr::filter(Murska_data_longer, is.na(Variable) == FALSE),
-       aes(x = Month, y = Value, group = Month)) +
+ggplot(data = Murska_data_longer, aes(x = Month, y = Value, group = Month)) +
   geom_point(data = Murska_data_longer_month,
              aes(x = Month, y = Value, group = Month), color = "black", size = 0.7, na.rm = TRUE) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Murska_data_longer, Variable != "P"),
+              trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Murska_data_longer, Variable == "P"),
+              trim = FALSE, bounds = c(0, Inf), scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +
   geom_text(data = Murska_data_month_statistics,
             aes(x = Month, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
@@ -336,7 +737,7 @@ ggplot(data = dplyr::filter(Murska_data_longer, is.na(Variable) == FALSE),
                      labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
                      expand = expansion(mult = 0.01, add = 0)) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.3, 0.1))) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.4, 0.1))) +
   facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 8, colour = "black"),
@@ -350,15 +751,18 @@ ggplot(data = dplyr::filter(Murska_data_longer, is.na(Variable) == FALSE),
 ggsave(filename = paste("Murska_monthly_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 95, height = 180, units = "mm")
 
 # Seasonal plot
-ggplot(data = dplyr::filter(Murska_data_longer, Year > 2010 & is.na(Variable) == FALSE),
+ggplot(data = Murska_data_longer,
        aes(x = Season, y = Value, group = Season)) +
   geom_point(data = Murska_data_longer_season,
              aes(x = Season, y = Value, group = Season), color = "black", size = 0.7, na.rm = TRUE) +
-  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Murska_data_longer, Variable != "P"),
+              trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Murska_data_longer, Variable == "P"),
+              trim = FALSE, bounds = c(0, Inf), scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +
   geom_text(data = Murska_data_season_statistics,
             aes(x = Season, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
             inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
-  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.3, 0.1))) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.4, 0.1))) +
   labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; A ("^"3"*"H) [TU]; T [°C], P [mm], RH [%]")) +
   facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
   theme_bw() +
@@ -371,6 +775,60 @@ ggplot(data = dplyr::filter(Murska_data_longer, Year > 2010 & is.na(Variable) ==
         legend.position = "none")
 
 ggsave(filename = paste("Murska_seasonal_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 70, height = 180, units = "mm")
+
+# Hungary
+# Monthly plot
+ggplot(data = dplyr::filter(Hungarian_data_longer, Name != "Koppány watershed"),
+       aes(x = Month, y = Value, group = Month)) +
+  geom_point(data = Hungarian_data_longer_month,
+             aes(x = Month, y = Value, group = Month), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_text(data = Hungarian_data_month_statistics,
+            aes(x = Month, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
+            inherit.aes = FALSE, vjust = 2.2, size = 3, check_overlap = TRUE) +
+  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; T [°C], P [mm]")) +
+  scale_x_continuous(breaks = seq(1, 12, 1),
+                     labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
+                     expand = expansion(mult = 0.01, add = 0)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.3, 0.1))) +
+  facet_wrap(~ Variable, scales = "free_y", ncol = 1, labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 8, colour = "black"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 8, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        strip.text = element_text(size = 8, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")
+
+ggsave(filename = paste("Hungarian_monthly_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 95, height = 180, units = "mm")
+
+# Seasonal plot
+ggplot(data = dplyr::filter(Hungarian_data_longer, Name != "Koppány watershed"),
+       aes(x = Season, y = Value, group = Season)) +
+  geom_point(data = Hungarian_data_longer_season,
+             aes(x = Season, y = Value, group = Season), color = "black", size = 0.7, na.rm = TRUE) +
+  geom_violin(data = dplyr::filter(Hungarian_data_longer, Variable != "P"),
+              trim = FALSE, scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_violin(data = dplyr::filter(Hungarian_data_longer, Variable == "P"),
+              trim = FALSE, bounds = c(0, Inf), scale = "area", alpha = 0.5, linewidth = 0.3, na.rm = TRUE) +  # Trim = FALSE to avoid cutting off the tails
+  geom_text(data = Hungarian_data_season_statistics,
+            aes(x = Season, y = Min, label = n), # Use y = 0 or another fixed value to position text inside plot
+            inherit.aes = FALSE, vjust = 4, size = 3, check_overlap = TRUE) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x), expand = expansion(mult = c(0.5, 0.1))) +
+  labs(y = expression("\u03B4"^"18"*"O, \u03B4"^"2"*"H, and d-excess [\u2030]; T [°C], P [mm]")) +
+  facet_wrap(~ Variable, scales = "free_y", nrow = 2, labeller = label_parsed) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 8, colour = "black"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 8, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        strip.text = element_text(size = 8, colour = "black", margin = margin(0.02, 0, 0.02, 0, unit = "cm")),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")
+
+ggsave(filename = paste("Hungarian_seasonal_violin",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 180, height = 90, units = "mm")
 
 ###############################################################################
 # FIGURE 5
@@ -434,6 +892,119 @@ ggplot(data = dplyr::filter(Murska_data_longer_sigma, Variable_size == "P" & Val
         panel.grid.minor = element_blank())
 
 ggsave(filename = paste("Murska_sigma_plot_P",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 80, units = "mm")
+
+# Sigma plot HUNGARIAN
+Hungarian_data_with_all <- dplyr::bind_rows(Hungarian_data,
+                                            data.frame(δ18O = NA, δ2H = NA, Name = "All data",
+                                                       shape = NA, color = "black"))
+
+ggplot() +
+  geom_abline(slope = 8, intercept = 10, color = "black", linewidth = 0.3) +
+  geom_abline(data = dplyr::filter(Hungarian_data_slopes, !(Name %in%  c("Törökkoppány", "Tamási"))),
+              aes(slope = slope_RMA_weighted, intercept = intercept_RMA_weighted, color = Name),
+              linewidth = 0.3) +
+  geom_point(data = dplyr::filter(Hungarian_data, !(Name %in%  c("Törökkoppány", "Tamási"))),
+             aes(x = δ18O, y = δ2H, shape = Name, color = Name),
+             size = 1.2, na.rm = TRUE) +
+  geom_point(data = dplyr::filter(Hungarian_data_with_all, Name == "All data"),
+             aes(x = δ18O, y = δ2H, shape = Name, color = Name),
+             size = 1.2, na.rm = TRUE, show.legend = FALSE) +
+  geom_text(data = dplyr::filter(Hungarian_data_slopes, !(Name %in%  c("Törökkoppány", "Tamási"))),
+            aes(x = c(-10, -10, -10), y = c(-10, -17, -24), label = LMWL_PWRMA, color = Name),
+            size = 2.5, show.legend = FALSE) +
+  scale_shape_manual(values = c(3, 16, 17)) +
+  scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
+       x = expression("\u03B4"^"18"*"O [\u2030]")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, colour = "black"),
+        axis.title.x = element_text(size = 7, colour = "black"),
+        axis.text.y = element_text(size = 7, colour = "black"),
+        axis.title.y = element_text(size = 7, colour = "black"),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 6, colour = "black"),
+        legend.position = "inside",
+        legend.position.inside = c(0.80, 0.2),
+        legend.key.spacing.y = unit(1, "mm"),
+        legend.spacing = unit(0, "mm"),
+        legend.key.size = unit(2, "mm"),
+        legend.background = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = paste("Hungarian_sigma_plot",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 90, height = 90, units = "mm")
+
+# Sigma plot & T HUNGARIAN
+ggplot(data = dplyr::filter(Hungarian_data_longer_sigma, Variable_size == "T" & Value_size > 0),
+       aes(x = δ18O, y = δ2H, size =  Value_size)) +
+  geom_point(aes(shape = Name), fill = "grey", color = "black", na.rm = TRUE) +
+  geom_abline(data = dplyr::filter(Hungarian_data_slopes %>% mutate(Name = ifelse(Name == "Murska Sobota - Rakičan", "Ledava watershed", Name)),
+                                   !(Name %in%  c("Törökkoppány", "Tamási", "All data"))),
+              aes(slope = slope_RMA_weighted, intercept = intercept_RMA_weighted, linetype = Name),
+              linewidth = 0.3) +
+  scale_shape_manual(values = c(21,1)) +
+  scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_radius() +  # breaks = scales::breaks_extended(n = 8)
+  labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
+       x = expression("\u03B4"^"18"*"O [\u2030]"),
+       size = "Temperature [°C]",
+       shape = "",
+       linetype = "") +
+  guides(shape = guide_legend(position = "top"),
+         linetype = guide_legend(position = "top")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 8, colour = "black"),
+        axis.title.x = element_text(size = 8, colour = "black"),
+        axis.text.y = element_text(size = 8, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        legend.title = element_text(size = 8, colour = "black"),
+        legend.text = element_text(size = 7, colour = "black"),
+        legend.position = "inside",
+        legend.position.inside = c(0.80, 0.2),
+        legend.key.spacing.y = unit(1, "mm"),
+        legend.spacing = unit(0, "mm"),
+        legend.key.size = unit(2, "mm"),
+        legend.background = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = paste("Hungarian_sigma_plot_T",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 85, units = "mm")
+
+# Sigma plot & P HUNGARIAN
+ggplot(data = dplyr::filter(Hungarian_data_longer_sigma, Variable_size == "P" & Value_size > 0),
+       aes(x = δ18O, y = δ2H, size =  Value_size)) +
+  geom_point(aes(shape = Name), fill = "grey", color = "black", na.rm = TRUE) +
+  geom_abline(data = dplyr::filter(Hungarian_data_slopes %>% mutate(Name = ifelse(Name == "Murska Sobota - Rakičan", "Ledava watershed", Name)),
+                                   !(Name %in%  c("Törökkoppány", "Tamási", "All data"))),
+              aes(slope = slope_RMA_weighted, intercept = intercept_RMA_weighted, linetype = Name),
+              linewidth = 0.3) +
+  scale_shape_manual(values = c(21,1)) +
+  scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
+  scale_radius() +  # breaks = scales::breaks_extended(n = 8)
+  labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
+       x = expression("\u03B4"^"18"*"O [\u2030]"),
+       size = "Precipitation [mm]",
+       shape = "",
+       linetype = "") +
+  guides(shape = guide_legend(position = "top"),
+         linetype = guide_legend(position = "top")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 8, colour = "black"),
+        axis.title.x = element_text(size = 8, colour = "black"),
+        axis.text.y = element_text(size = 8, colour = "black"),
+        axis.title.y = element_text(size = 8, colour = "black"),
+        legend.title = element_text(size = 8, colour = "black"),
+        legend.text = element_text(size = 7, colour = "black"),
+        legend.position = "inside",
+        legend.position.inside = c(0.80, 0.2),
+        legend.key.spacing.y = unit(1, "mm"),
+        legend.spacing = unit(0, "mm"),
+        legend.key.size = unit(2, "mm"),
+        legend.background = element_blank(),
+        panel.grid.minor = element_blank())
+
+ggsave(filename = paste("Hungarian_sigma_plot_P",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 80, height = 85, units = "mm")
 
 ###############################################################################
 # FIGURE 6

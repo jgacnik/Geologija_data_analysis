@@ -1,0 +1,17 @@
+"Name","Season","weighted_mean_d2H","weighted_mean_d18O","weighted_mean_d","mean_T","sum_P"
+"Koppány watershed","winter",-56.5,-7.86,6.4,3,639
+"Koppány watershed","spring",-49.6,-7.26,8.5,12.6,408
+"Koppány watershed","summer",-31.3,-4.62,5.7,21.9,492
+"Koppány watershed","autumn",-56.8,-8.13,8.3,12.3,584
+"Murska Sobota - Rakičan","winter",-103.5,-14.4,11.7,2.4,294
+"Murska Sobota - Rakičan","spring",-52.8,-7.86,10.1,12.2,371
+"Murska Sobota - Rakičan","summer",-37,-5.62,8,21.5,511
+"Murska Sobota - Rakičan","autumn",-67.5,-9.69,10,11.8,452
+"Törökkoppány","winter",-83.7,-11.63,9.3,3,323
+"Törökkoppány","spring",-45.8,-6.73,8.1,12.6,223
+"Törökkoppány","summer",-29.4,-4.28,4.9,21.9,321
+"Törökkoppány","autumn",-57,-8.05,7.4,12.3,417
+"All data","winter",-65.3,-9.08,7.4,2.8,1571
+"All data","spring",-50.6,-7.45,9,12.4,1186
+"All data","summer",-33.2,-4.96,6.5,21.8,1494
+"All data","autumn",-59.8,-8.57,8.7,12.2,1619
