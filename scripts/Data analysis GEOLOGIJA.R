@@ -7,11 +7,11 @@
 # DO THIS STEP ONLY THE FIRST TIME! Installation of needed packages
 install.packages(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"))
 
-# CHANGE THE FOLLOWING PARAMETERS:
-path_scripts <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/scripts" # Change to your directory path where the R scripts are located, use "/" and not "\"
-path_data <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/data" # Change to your directory path where the data is located, use "/" and not "\"
-path_figures <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/figures" # Change to your directory path where you want to save figures, use "/" and not "\"
-path_tables <- "ENTER/PATH/TO/DIRECTORY/Geologija_data_analysis/tables" # Change to your directory path where you want to save tables, use "/" and not "\"
+# Paths relative to the Geologija_data_analysis.Rproj project root
+path_scripts <- "scripts"
+path_data <- "data"
+path_figures <- "figures"
+path_tables <- "tables"
 
 ###############################################################################
 # CODE BELOW DOES NOT NEED ALTERING
@@ -22,11 +22,10 @@ figure_type <- "png"
 dpi_set <- 500
 
 # Load required packages for the current session
-setwd(path_scripts)
 lapply(c("rnaturalearth", "sf", "slider", "ggcorrplot", "forecast", "tidyverse", "readxl"), require, character.only = TRUE)
 
 # Calling needed functions for PWRMA. Located in separate script "Functions_MA&RMA.R"
-source("Functions_MA&RMA.R")
+source(file.path(path_scripts, "Functions_MA&RMA.R"))
 
 ###############################################################################
 # Data reading, adjusting, and filtering
