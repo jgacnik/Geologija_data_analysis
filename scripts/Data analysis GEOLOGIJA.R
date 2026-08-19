@@ -96,6 +96,17 @@ Portoroz_data_cor <- Portoroz_data %>%
   dplyr::select(δ18O, δ2H, d, "3H", T, P, RH) %>%
   cor(use = "pairwise.complete.obs", method = "pearson")
 
+Portoroz_data_cor_p <- Portoroz_data %>% 
+  dplyr::select(δ18O, δ2H, d, "3H", T, P, RH) %>%
+  cor_pmat(method = "pearson") 
+# %>% 
+#   {
+#     p <- .
+#     p[] <- ifelse(!is.na(p) & p < 0.05, 0.049, 1)
+#     diag(p) <- 1
+#     p
+#   }
+
 Portoroz_data_longer <-  Portoroz_data %>% 
   pivot_longer(cols = c(δ18O, δ2H, d, "3H", T, P, RH), names_to = "Variable", values_to = "Value") %>%
   mutate(Variable_color = Variable) %>%
@@ -515,7 +526,7 @@ ggplot(data = dplyr::filter(Portoroz_data_longer_sigma, Variable_size == "T" & V
   geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = Portoroz_data_slopes_period$slope_RMA_weighted,
               intercept = Portoroz_data_slopes_period$intercept_RMA_weighted) +
-  annotate("text", x = -10, y = -10,
+  annotate("text", x = -8, y = -4,
            label = paste0("δ2H = (",
                           Portoroz_data_slopes_period$slope_RMA_weighted,
                           "±",
@@ -540,7 +551,7 @@ ggplot(data = dplyr::filter(Portoroz_data_longer_sigma, Variable_size == "T" & V
         legend.title = element_text(size = 8, colour = "black"),
         legend.text = element_text(size = 7, colour = "black"),
         legend.position = "inside",
-        legend.position.inside = c(0.80, 0.2),
+        legend.position.inside = c(0.80, 0.25),
         legend.key.spacing.y = unit(1, "mm"),
         legend.spacing = unit(0, "mm"),
         legend.key.size = unit(2, "mm"),
@@ -555,7 +566,7 @@ ggplot(data = dplyr::filter(Portoroz_data_longer_sigma, Variable_size == "P" & V
   geom_point(fill = "grey", color = "black", shape = 21, na.rm = TRUE) +
   geom_abline(slope = Portoroz_data_slopes_period$slope_RMA_weighted,
               intercept = Portoroz_data_slopes_period$intercept_RMA_weighted) +
-  annotate("text", x = -10, y = -10,
+  annotate("text", x = -8, y = -4,
            label = paste0("δ2H = (",
                           Portoroz_data_slopes_period$slope_RMA_weighted,
                           "±",
@@ -568,7 +579,7 @@ ggplot(data = dplyr::filter(Portoroz_data_longer_sigma, Variable_size == "P" & V
            size = 2.7) +
   scale_x_continuous(labels = ~sub("-", "\u2212", .x)) +
   scale_y_continuous(labels = ~sub("-", "\u2212", .x)) +
-  scale_radius() +  # breaks = scales::breaks_extended(n = 8)
+  scale_radius(breaks = scales::breaks_extended(n = 6)) +  # breaks = scales::breaks_extended(n = 8)
   labs(y = expression("\u03B4"^"2"*"H [\u2030]"),
        x = expression("\u03B4"^"18"*"O [\u2030]"),
        size = "Precipitation [mm]") +
@@ -580,7 +591,7 @@ ggplot(data = dplyr::filter(Portoroz_data_longer_sigma, Variable_size == "P" & V
         legend.title = element_text(size = 8, colour = "black"),
         legend.text = element_text(size = 7, colour = "black"),
         legend.position = "inside",
-        legend.position.inside = c(0.80, 0.2),
+        legend.position.inside = c(0.80, 0.25),
         legend.key.spacing.y = unit(1, "mm"),
         legend.spacing = unit(0, "mm"),
         legend.key.size = unit(2, "mm"),
@@ -594,14 +605,82 @@ ggsave(filename = paste("Portoroz_sigma_plot_P",".",figure_type, sep = ""), path
 ###############################################################################
 # Correlation plot
 cor_labels <- as.character(Portoroz_data_cor)
-
-# Replace hyphens (−) with minus signs (-) in the labels in post-processing of the figure
 cor_labels <- gsub("−", "-", cor_labels)
-ggcorrplot(Portoroz_data_cor, hc.order = TRUE, type = "lower", lab = TRUE,
-           legend.title = "",
-           lab_size = 2.7,
-           tl.cex = 8) +
+variable_order <- c(
+  "3H", "T", "δ18O", "δ2H", "P", "d", "RH"
+)
+Portoroz_data_cor_ordered <- Portoroz_data_cor[
+  variable_order,
+  variable_order
+]
+
+Portoroz_data_cor_p_ordered <- Portoroz_data_cor_p[
+  variable_order,
+  variable_order
+]
+cor_label_expression <- c(
+  "δ18O" = "italic(delta)^{18}*O",
+  "δ2H"  = "italic(delta)^{2}*H",
+  "3H"   = "{}^{3}*H",
+  "d"    = "italic(d)-excess",
+  "T"    = "T",
+  "P"    = "P",
+  "RH"   = "RH"
+)
+
+parse_cor_labels <- function(x) {
+  labels <- unname(cor_label_expression[x])
+  
+  # Retain any names not included in the lookup vector
+  labels[is.na(labels)] <- x[is.na(labels)]
+  
+  parse(text = labels)
+}
+minus_labels <- function(x, digits = 1) {
+  labels <- formatC(
+    x,
+    format = "f",
+    digits = digits
+  )
+  
+  gsub("-", "\u2212", labels, fixed = TRUE)
+}
+
+correlation_plot <- ggcorrplot(Portoroz_data_cor_ordered,
+                               p.mat = Portoroz_data_cor_p_ordered,
+                               insig = "stars",
+                               type = "lower",
+                               hc.order = FALSE,
+                               lab = TRUE,
+                               legend.title = "",
+                               lab_size = 2.7,
+                               tl.cex = 8) +
+  scale_x_discrete(labels = parse_cor_labels) +
+  scale_y_discrete(labels = parse_cor_labels) +
+  scale_fill_gradient2(
+    low = "blue",
+    mid = "white",
+    high = "red",
+    midpoint = 0,
+    limits = c(-1, 1),
+    labels = minus_labels,
+    name = ""
+  ) +
   theme(
+    text = element_text(color = "black"),
     legend.text = element_text(size = 8)
   )
+
+for (i in seq_along(correlation_plot$layers)) {
+  labels <- correlation_plot$layers[[i]]$aes_params$label
+  
+  if (!is.null(labels)) {
+    correlation_plot$layers[[i]]$aes_params$label <-
+      minus_labels(labels)
+  }
+}
+
+correlation_plot
+
 ggsave(filename = paste("Portoroz_correlation_plot",".",figure_type, sep = ""), path = path_figures, device = figure_type, dpi = 1500, width = 120, height = 100, units = "mm")
+
